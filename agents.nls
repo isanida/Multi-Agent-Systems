@@ -1,0 +1,184 @@
+buses-own [
+  ; Static, read-only variables. These values never change. You can read them, but you cannot change them.
+  bus_id          ; The ID of a given agent (bus). Each agent has a unique ID.
+  bus_type        ; The type of a given agent (bus). 1 means "small", 2 means "medium" and 3 means "large".
+    
+  ; Dynamic, read-only variables. These values may change over time. You can read them, but you cannot change them.
+  inbox           ; List containing all the incoming messages (a given message is a list like this [tick sender message]).
+  bus_passengers  ; List containing all the passengers that the agent (bus) is currently carrying (represented as a list like this [passenger_id bus_stop]).
+  previous_stop   ; ID of the last bus stop that the agent (bus) visited (-1 means that the agent has not visited any bus stop yet).
+  current_stop    ; ID of the bus stop where the agent (bus) currently is (-1 means that the agent is not at any bus stop).
+  next_stop       ; ID of the bus stop the agent (bus) is traveling to (-1 means that the agent is not travelling to any bus stop).
+
+  ; New local variables for students.
+  ; You can create any new local variable you want. Just declare them here.
+
+  ;next_options
+  ;destination
+  capacity
+  
+  itinerary
+  route_position
+  direction       ; Direction wrt itinerary
+
+]
+ 
+globals [graph]
+
+to init-buses
+  ; Initialize your agents here.
+
+  ; This list contains the topology of the entire network of bus stops, which is known to all agents. You can use this, for instance, to calculate the shortest path between two bus stops.
+  set graph [[22 15 14] [11 19 23 7] [8] [16 4 20 9] [3 5 10] [4 16 10 17] [8] [1 17 13] [2 6 9] [3 8 20] [4 5 17 13 21] [1 16 17] [20 15 22] [7 10 22 23] [0 23] [0 12 18] [3 5 11] [5 7 10 11] [15] [1 23] [3 9 12 21] [10 20 22] [0 12 13 21] [1 13 14 19]]
+
+  ; only use this to initialize agent variables, everything else in execute=actions 
+
+  ifelse bus_type = 1
+  [
+    set capacity 12
+  ]
+  [
+    ifelse bus_type = 2
+    [
+      set capacity 60 
+    ]
+    [
+      set capacity 150
+    ] 
+  ]
+  
+  ; North line
+  if member? bus_id [24 25 26 27 28]
+  [
+     set itinerary [3 9 8 2 8 6 8 9]
+  ]
+  
+  ; East line
+  if  member? bus_id [29 30 31 32 33]
+  [
+     set itinerary [3 20 12 15 18 15 0 22 21 20]
+  ]
+  
+  ; South line
+  if  member? bus_id [34 35 36 37 38]
+  [
+     set itinerary [3 4 10 13 23 14 23 19 1 7 17 10 4] 
+  ]
+  
+  ; West line
+  if  member? bus_id [39 40 41 42 43]
+  [
+     set itinerary [3 4 5 17 11 16] 
+  ]
+  
+  set route_position 0 
+  
+  ifelse (bus_id mod 2) = 0 
+  [
+    set direction 1 
+  ]
+  [
+    set direction -1 
+  ]
+  
+
+end
+
+to execute-actions
+  ; Add decision making strategies for your agents here.
+  ; You are allowed to use the global variable 'ticks'.
+  
+  
+  ifelse (count buses) < 20 
+  [
+    ; Just add 19 buses :)
+    let i 0 
+    while [i < 19]
+    [
+      add-bus 3 
+      set i i + 1
+      
+      ;show "bus added"
+    ] 
+    
+    
+  ]
+  [
+    if current_stop != -1
+    [
+      
+      ; Always drop off passengers at their destination
+      foreach bus_passengers
+        [
+          if current_stop = item 1 ? 
+          [
+            drop-off-passenger item 0 ? 
+            ;show word "dropped off " item 0 ?
+            ;show word "   at bus stop " current_stop
+          ]
+        ]
+          
+      let passengers-waiting get-passengers-at-stop current_stop
+      
+      ; Use Central Station as central location for all transfers
+      ifelse current_stop = 3
+      [
+        ; First drop off, then collect 
+        foreach bus_passengers
+        [
+           ; Drop off passengers at Central Station whose destination is not in the
+           ; itinerary of the current bus, so they can switch buses 
+           if not member? item 1 ? itinerary 
+           [
+             drop-off-passenger item 0 ?  
+             ;show word "dropped off " item 0 ? 
+             ;show word "   at bus stop " current_stop
+           ]
+         ]
+          
+         ; Similarly, check if there are passengers at Central (possibly dropped off
+         ; by other buses) whose destination is in the itinerary of the current bus, and pick them up
+         foreach passengers-waiting
+         [
+           if length bus_passengers < capacity
+           [
+             if member? item 1 ? itinerary 
+             [
+               ; Do not pick up passengers who are already at their destination
+               if current_stop != item 1 ?
+               [
+                 pick-up-passenger item 0 ? 
+                 ;show word "picked up " item 0 ? 
+                 ;show word "   at bus stop " current_stop
+                ]
+              ]
+            ]
+             
+          ]
+        ]
+      
+        ; At other stations, pick up anyone if capacity allows 
+        [
+          foreach passengers-waiting
+          [
+            if length bus_passengers < capacity
+            [
+              ; Do not pick up passengers who are already at their destination
+              if current_stop != item 1 ?
+              [
+                pick-up-passenger item 0 ? 
+                ;show word "picked up " item 0 ? 
+                ;show word "   at bus stop " current_stop
+              ]
+            ]  
+          ] 
+        ]
+     
+      set route_position (route_position + direction) mod (length itinerary)        
+    ]
+    
+    ;show route_position
+    travel-to item route_position itinerary  
+  ]
+  
+end
