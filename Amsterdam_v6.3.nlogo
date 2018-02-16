@@ -1,4 +1,5 @@
 __includes [ "agents.nls" ]
+
 breed [bus_stops bus_stop]
 undirected-link-breed [routes route]
 breed [buses bus]
