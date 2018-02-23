@@ -53,6 +53,7 @@ to setup
   add-bus 1
 end
 
+
 to calculate-average-travelling-time
   let sum_temp 0
   let list_temp filter [(item 8 ? != -1) or (item 7 ? != -1) or (item 6 ?)] passengers
