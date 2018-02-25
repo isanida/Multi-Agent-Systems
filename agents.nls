@@ -13,14 +13,20 @@ buses-own [
   ; New local variables for students.
   ; You can create any new local variable you want. Just declare them here.
 
-  ;next_options
-  ;destination
-  capacity
+  capacity        ; Number of passengers a bus can carry
   
-  itinerary
-  route_position
+  itinerary       ; Bus line to which bus is assigned
+  route_position  ; Position of bus in its assigned itinerary
   direction       ; Direction wrt itinerary
-
+  
+  noline          ; Trajectory of North line
+  esline          ; Trajectory of East line
+  soline          ; Trajectory of South line
+  weline          ; Trajectory of West line
+  
+  myline          ; Assigned own line 
+  
+  init            ; Indicates if initialization of first buses is to take place
 ]
  
 globals [graph]
@@ -30,7 +36,11 @@ to init-buses
 
   ; This list contains the topology of the entire network of bus stops, which is known to all agents. You can use this, for instance, to calculate the shortest path between two bus stops.
   set graph [[22 15 14] [11 19 23 7] [8] [16 4 20 9] [3 5 10] [4 16 10 17] [8] [1 17 13] [2 6 9] [3 8 20] [4 5 17 13 21] [1 16 17] [20 15 22] [7 10 22 23] [0 23] [0 12 18] [3 5 11] [5 7 10 11] [15] [1 23] [3 9 12 21] [10 20 22] [0 12 13 21] [1 13 14 19]]
-
+  set noline [3 9 8 2 8 6 8 9]
+  set esline [3 20 12 15 18 15 0 22 21 20]
+  set soline [3 4 10 13 23 14 23 19 1 7 17 10 4]
+  set weline [3 4 5 17 11 16]
+  
   ; only use this to initialize agent variables, everything else in execute=actions 
 
   ifelse bus_type = 1
@@ -47,40 +57,19 @@ to init-buses
     ] 
   ]
   
-  ; North line
-  if member? bus_id [24 25 26 27 28]
-  [
-     set itinerary [3 9 8 2 8 6 8 9]
-  ]
+  ; Initialize empty itinerary
+  set itinerary []
   
-  ; East line
-  if  member? bus_id [29 30 31 32 33]
+  ; Depending on their ID, let buses drive their itinerary in one direction or the other
+  ifelse bus_id mod 2 = 0
   [
-     set itinerary [3 20 12 15 18 15 0 22 21 20]
-  ]
-  
-  ; South line
-  if  member? bus_id [34 35 36 37 38]
-  [
-     set itinerary [3 4 10 13 23 14 23 19 1 7 17 10 4] 
-  ]
-  
-  ; West line
-  if  member? bus_id [39 40 41 42 43]
-  [
-     set itinerary [3 4 5 17 11 16] 
-  ]
-  
-  set route_position 0 
-  
-  ifelse (bus_id mod 2) = 0 
-  [
-    set direction 1 
+    set direction 1
   ]
   [
     set direction -1 
   ]
   
+  set init 0
 
 end
 
@@ -88,35 +77,96 @@ to execute-actions
   ; Add decision making strategies for your agents here.
   ; You are allowed to use the global variable 'ticks'.
   
-  
-  ifelse (count buses) < 20 
+  ; Initialize itineraries for first four buses
+  if init = 1
   [
-    ; Just add 19 buses :)
-    let i 0 
-    while [i < 19]
-    [
-      add-bus 3 
-      set i i + 1
-      
-      ;show "bus added"
-    ] 
-    
-    
+    send-message 24 "north"
+    send-message 25 "west"
+    send-message 26 "south"
+    send-message 27 "east" 
+    set init 0
+  ]
+  
+  ifelse count buses < 4 
+  [
+    ; Create first buses
+    add-bus 3
+    add-bus 3
+    add-bus 3
+    set init 1
   ]
   [
+    ifelse length inbox != 0
+    [
+      foreach inbox
+      [
+        ; Assign buses to lines by messaging system
+        if item 2 ? = "north"
+        [
+          set itinerary noline
+          set myline item 2 ?
+          set inbox []
+         ]
+         if item 2 ? = "west"
+         [
+           set itinerary weline
+           set myline item 2 ?
+           set inbox []
+         ]
+         if item 2 ? = "south"
+         [
+          set itinerary soline
+          set myline item 2 ?
+          set inbox []
+         ]
+         if item 2 ? = "east"
+         [
+           set itinerary esline
+           set myline item 2 ?
+           set inbox []
+         ]
+         
+         ; Add bus and send message to assign it to one line
+         if item 2 ? = "almost full"
+         [
+           send-message (count buses + 23) myline
+           set inbox []
+           send-message bus_id "bus added"
+           show word "added bus on line " myline 
+         ]
+       ] 
+     ]
+     [
+       
+       ; Only let bus create new bus if a bus approaches maximum capacity that has not 
+       ; created any other buses before, i.e. buses with no "almost full" or "bus added" message in their inbox 
+       if length bus_passengers > (capacity * 0.9)
+       [
+         send-message bus_id "almost full"
+         add-bus 3
+       ]
+     ]
+     
+     if length itinerary != 0
+     [
+       process-route
+     ]
+   ]
+end
+
+to process-route
+
     if current_stop != -1
     [
       
       ; Always drop off passengers at their destination
       foreach bus_passengers
+      [
+        if current_stop = item 1 ? 
         [
-          if current_stop = item 1 ? 
-          [
-            drop-off-passenger item 0 ? 
-            ;show word "dropped off " item 0 ?
-            ;show word "   at bus stop " current_stop
-          ]
+          drop-off-passenger item 0 ? 
         ]
+      ]
           
       let passengers-waiting get-passengers-at-stop current_stop
       
@@ -126,59 +176,59 @@ to execute-actions
         ; First drop off, then collect 
         foreach bus_passengers
         [
-           ; Drop off passengers at Central Station whose destination is not in the
-           ; itinerary of the current bus, so they can switch buses 
-           if not member? item 1 ? itinerary 
-           [
-             drop-off-passenger item 0 ?  
-             ;show word "dropped off " item 0 ? 
-             ;show word "   at bus stop " current_stop
-           ]
-         ]
-          
-         ; Similarly, check if there are passengers at Central (possibly dropped off
-         ; by other buses) whose destination is in the itinerary of the current bus, and pick them up
-         foreach passengers-waiting
-         [
-           if length bus_passengers < capacity
-           [
-             if member? item 1 ? itinerary 
-             [
-               ; Do not pick up passengers who are already at their destination
-               if current_stop != item 1 ?
-               [
-                 pick-up-passenger item 0 ? 
-                 ;show word "picked up " item 0 ? 
-                 ;show word "   at bus stop " current_stop
-                ]
-              ]
-            ]
-             
-          ]
-        ]
-      
-        ; At other stations, pick up anyone if capacity allows 
-        [
-          foreach passengers-waiting
+          ; Drop off passengers at Central Station whose destination is not in the
+          ; itinerary of the current bus, so they can switch buses 
+          if not member? item 1 ? itinerary 
           [
-            if length bus_passengers < capacity
-            [
-              ; Do not pick up passengers who are already at their destination
+            drop-off-passenger item 0 ?  
+          ] 
+        ]
+          
+       ; Similarly, check if there are passengers at Central (possibly dropped off
+       ; by other buses) whose destination is in the itinerary of the current bus, and pick them up
+       foreach passengers-waiting
+       [
+         if length bus_passengers < capacity
+         [
+           if member? item 1 ? itinerary 
+           [
+             ; Do not pick up passengers who are already at their destination
               if current_stop != item 1 ?
               [
                 pick-up-passenger item 0 ? 
-                ;show word "picked up " item 0 ? 
-                ;show word "   at bus stop " current_stop
               ]
-            ]  
-          ] 
+            ]
+          ]          
         ]
-     
+      ]
+      
+      ; At other stations, pick up anyone if capacity allows 
+      [
+        foreach passengers-waiting
+        [
+          if length bus_passengers < capacity
+          [
+            ; Do not pick up passengers who are already at their destination
+            if current_stop != item 1 ?
+            [
+              pick-up-passenger item 0 ? 
+            ]
+          ]
+        ] 
+      ]
       set route_position (route_position + direction) mod (length itinerary)        
-    ]
+    ]  
     
-    ;show route_position
     travel-to item route_position itinerary  
-  ]
+  
+end
+
+to s-msg-to-line
+    foreach n-values (count buses) [? + 24]
+    [
+       if ? != bus_id 
+         [send-message ? myline]
+    ]
+    ;ask buses [print who]
   
 end
