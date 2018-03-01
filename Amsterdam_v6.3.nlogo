@@ -37,6 +37,7 @@ globals [
   bus_type3_capacity
   general_action_cost
   leasing_list
+  line_list
   average_travelling_time_remaining
   final_average_travelling_time
 ]
@@ -50,7 +51,7 @@ to setup
   get-daily-ridership-schedule
   update-bus-stops
   setup-costs
-  add-bus 1
+  add-bus 3 1
 end
 
 
@@ -470,23 +471,27 @@ to update-bus-stops-colors
   ]
 end
 
-to add-bus [b_t]
+to add-bus [b_t line]
   ifelse is-number? b_t = false or  b_t < 1 or b_t > 3 [
     show (word "WARNING: add-bus                       :" "type of bus does not exist: " b_t)
   ]
   [
     if not is-list? leasing_list [
       set leasing_list []
+      set line_list []
     ]
     set leasing_list lput b_t leasing_list
+    set line_list lput line line_list
   ]
+
 end
 
 to add-buses
   if is-number? leasing_list = true [stop]
 
-  foreach leasing_list [
-    let bt ?
+  (foreach leasing_list line_list [
+    let bt ?1
+    let line ?2
     create-buses 1 [
       let cost 0
       set bus_type bt
@@ -517,10 +522,12 @@ to add-buses
       set next_stop -1
       set current_stop 3
       set previous_stop -1
+      set line_id line
       init-buses
     ]
-  ]
+  ])
   set leasing_list []
+  set line_list []
 end
 
 to-report get-bus-stop-here [x y]
