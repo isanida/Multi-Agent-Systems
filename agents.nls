@@ -17,6 +17,10 @@ buses-own [
   ;destination
   capacity
   
+  next_bus_stop
+  
+  total_dropped_pass
+  
   itinerary
   route_position
   direction       ; Direction wrt itinerary
@@ -30,6 +34,13 @@ to init-buses
 
   ; This list contains the topology of the entire network of bus stops, which is known to all agents. You can use this, for instance, to calculate the shortest path between two bus stops.
   set graph [[22 15 14] [11 19 23 7] [8] [16 4 20 9] [3 5 10] [4 16 10 17] [8] [1 17 13] [2 6 9] [3 8 20] [4 5 17 13 21] [1 16 17] [20 15 22] [7 10 22 23] [0 23] [0 12 18] [3 5 11] [5 7 10 11] [15] [1 23] [3 9 12 21] [10 20 22] [0 12 13 21] [1 13 14 19]]
+
+  set amsterdam_bus_stops_names ["Amstel" "Amstelveenseweg" "Buikslotermeer" "Centraal" "Dam"
+    "Evertsenstraat" "Floradorp" "Haarlemmermeerstation" "Hasseltweg" "Hendrikkade"
+    "Leidseplein" "Lelylaan" "Muiderpoort" "Museumplein" "RAI" "SciencePark" "Sloterdijk"
+    "Surinameplein" "UvA" "VU" "Waterlooplein" "Weesperplein" "Wibautstraat" "Zuid"]
+  
+  
 
   ; only use this to initialize agent variables, everything else in execute=actions 
 
@@ -47,141 +58,191 @@ to init-buses
     ] 
   ]
   
-  ; North line
-  if member? bus_id [24 28 32 36 40 44]
-  [
-     set itinerary [3 9 8 2 8 6 8 9]
-  ]
-  
-  ; East line
-  if  member? bus_id [25 29 33 37 41 45]
-  [
-     set itinerary [3 20 12 15 18 15 0 22 21 20]
-  ]
-  
-  ; South line
-  if  member? bus_id [26 30 34 38 42 46]
-  [
-     set itinerary [3 4 10 13 23 14 23 19 1 7 17 10 4] 
-  ]
-  
-  ; West line
-  if  member? bus_id [27 31 35 39 43 47]
-  [
-     set itinerary [3 4 5 17 11 16] 
-  ]
-  
   set route_position 0 
   
-  ifelse (bus_id mod 2) = 0 
-  [
-    set direction 1 
-  ]
-  [
-    set direction -1 
-  ]
+  set color green;
   
-
+  set total_dropped_pass 0
 end
 
 to execute-actions
+  
+  if ticks mod 20 = 0 and bus_id = 24 and count buses < 20
+  [
+    add-bus 3
+  ]
+  
   ; Add decision making strategies for your agents here.
   ; You are allowed to use the global variable 'ticks'.
+  let xs [27 11 31 22 21 11 25 11 26 25 17 4 31 17 19 35 6 10 38 14 23 24 25 15]
+  let ys [7 4 30 21 18 18 30 9 24 18 14 12 13 11 3 10 26 13 11 1 16 13 11 4]
   
-  if bus_id = 24
+  ifelse length bus_passengers < (0.5 * capacity)
   [
-    if (count buses) < 24
+    set color green;
+  ]
+  [
+    ifelse length bus_passengers < (0.8 * capacity)
     [
-      ; Just add 19 buses :)
-      
-      let i (minutes)
-      
-      show ticks
-      if ticks mod 5 = 0 [
-        add-bus 3
-        show "bus added"
+      set color yellow;
+    ]
+    [
+      ifelse length bus_passengers < (0.95 * capacity) 
+      [
+        set color orange;
+      ]
+      [
+        set color red;
       ]
     ]
   ]
   
   
-  
-  
   if current_stop != -1
-  [
-    
+  [    
     ; Always drop off passengers at their destination
+
     foreach bus_passengers
-      [
-        if current_stop = item 1 ? 
-        [
-          drop-off-passenger item 0 ? 
-          ;show word "dropped off " item 0 ?
-          ;show word "   at bus stop " current_stop
-        ]
-      ]
-        
-    let passengers-waiting get-passengers-at-stop current_stop
-    
-    ; Use Central Station as central location for all transfers
-    ifelse current_stop = 3
     [
-      ; First drop off, then collect 
+      if current_stop = item 1 ? 
+      [
+        drop-off-passenger item 0 ? 
+        set total_dropped_pass total_dropped_pass + 1
+      ]
+    ]
+    ; show(word "Total dropped off " total_dropped_pass)
+    
+    ; Find the connected bus stops
+    let connected_bus_stops item current_stop graph
+    
+    ; Find the names of the connected bus stops, and the amount of passengers waiting at these stops
+    let stop_names []
+    let pass_waiting_at_next_stops []
+    foreach connected_bus_stops
+    [
+      let stop_name item ?1 amsterdam_bus_stops_names
+      set stop_names lput stop_name stop_names
+      let pass_waiting_at_next_stop length get-passengers-at-stop ?1
+      set pass_waiting_at_next_stops lput pass_waiting_at_next_stop pass_waiting_at_next_stops
+    ]
+    
+    ;show(word "Possible next stops" stop_names)
+    ;show(word "Passengers waiting at next stops: " pass_waiting_at_next_stops)
+    
+    let passenger_votes n-values length connected_bus_stops [0]
+    if length bus_passengers != 0
+    [
       foreach bus_passengers
       [
-         ; Drop off passengers at Central Station whose destination is not in the
-         ; itinerary of the current bus, so they can switch buses 
-         if not member? item 1 ? itinerary 
-         [
-           drop-off-passenger item 0 ?  
-           ;show word "dropped off " item 0 ? 
-           ;show word "   at bus stop " current_stop
-         ]
-       ]
+        let destination item 1 ?1
+        let destination_x_cor item destination xs
+        let destination_y_cor item destination ys
         
-       ; Similarly, check if there are passengers at Central (possibly dropped off
-       ; by other buses) whose destination is in the itinerary of the current bus, and pick them up
-       foreach passengers-waiting
-       [
-         if length bus_passengers < capacity
-         [
-           if member? item 1 ? itinerary 
-           [
-             ; Do not pick up passengers who are already at their destination
-             if current_stop != item 1 ?
-             [
-               pick-up-passenger item 0 ? 
-               ;show word "picked up " item 0 ? 
-               ;show word "   at bus stop " current_stop
-              ]
-            ]
-          ]
-           
+        let distances []
+        foreach connected_bus_stops
+        [
+          let stop_x_cor item ?1 xs
+          let stop_y_cor item ?1 ys
+          
+          let dist sqrt ((stop_x_cor - destination_x_cor)*(stop_x_cor - destination_x_cor) + (stop_y_cor - destination_y_cor)*(stop_y_cor - destination_y_cor))
+          set distances lput dist distances
+        ]
+        ;show(word "Destination " item destination amsterdam_bus_stops_names)
+        ;show(word "Distances: " distances)
+        
+        let min_distance min distances
+        let argmin position min_distance distances
+        let best_bus_stop item argmin connected_bus_stops
+        
+        let old_value item argmin passenger_votes
+        set passenger_votes replace-item argmin passenger_votes (old_value + 1)
+      ]
+    ]
+    
+    ;show(word "Number of passengers " length bus_passengers)
+    
+    ;show(word "Passenger votes: " passenger_votes)
+    
+    let total_votes []
+    (foreach pass_waiting_at_next_stops passenger_votes
+    [
+      set total_votes lput (?1 + ?2) total_votes
+    ])
+    
+    ;show(word "Total votes: " total_votes)
+    
+    
+    
+    ; Find the argmax of the list with passengers waiting at connected bus stops (netlogo has no direct argmax function)
+    let max_passengers max total_votes
+    let argmax position max_passengers total_votes
+    
+    ; Determine what the next bus stop is
+    set next_bus_stop item argmax connected_bus_stops
+    let next_bus_stop_name item next_bus_stop amsterdam_bus_stops_names
+    ; show(word "Next bus stop: " next_bus_stop_name)
+    
+    let all_zero true
+    foreach total_votes
+    [
+      set all_zero all_zero and ?1 = 0
+    ]
+    
+    if all_zero
+    [
+      set next_bus_stop one-of connected_bus_stops
+    ]
+    
+    
+    let current_stop_x_cor item current_stop xs
+    let current_stop_y_cor item current_stop ys
+    
+    let next_stop_x_cor item next_bus_stop xs
+    let next_stop_y_cor item next_bus_stop ys
+    
+    ; Drop the passengers if the next stop doesn't bring them closer to their final destination
+    if length bus_passengers != 0
+    [
+      foreach bus_passengers
+      [
+        let destination item 1 ?1
+        let destination_x_cor item destination xs
+        let destination_y_cor item destination ys
+        
+        let dist_here_to_dest sqrt ((current_stop_x_cor - destination_x_cor)*(current_stop_x_cor - destination_x_cor) + (current_stop_y_cor - destination_y_cor)*(current_stop_y_cor - destination_y_cor))
+        let dist_next_stop_to_dest sqrt ((next_stop_x_cor - destination_x_cor)*(next_stop_x_cor - destination_x_cor) + (next_stop_y_cor - destination_y_cor)*(next_stop_y_cor - destination_y_cor))
+        
+        if dist_next_stop_to_dest > dist_here_to_dest
+        [
+          ;show(word "Current stop " item current_stop amsterdam_bus_stops_names "Next stop "  next_bus_stop_name)
+          ;show(word "So dropping passenger with destination " item destination amsterdam_bus_stops_names)
+          drop-off-passenger item 0 ? 
         ]
       ]
+    ]
     
-      ; At other stations, pick up anyone if capacity allows 
+    
+    
+    let passengers-waiting get-passengers-at-stop current_stop
+    
+    ; At other stations, pick up anyone if capacity allows 
+    foreach passengers-waiting
+    [
+      if length bus_passengers < capacity
       [
-        foreach passengers-waiting
+        ; Do not pick up passengers who are already at their destination
+        if current_stop != item 1 ?
         [
-          if length bus_passengers < capacity
-          [
-            ; Do not pick up passengers who are already at their destination
-            if current_stop != item 1 ?
-            [
-              pick-up-passenger item 0 ? 
-              ;show word "picked up " item 0 ? 
-              ;show word "   at bus stop " current_stop
-            ]
-          ]  
-        ] 
-      ]
-   
-    set route_position (route_position + direction) mod (length itinerary)        
+          pick-up-passenger item 0 ? 
+          ;show word "picked up " item 0 ? 
+          ;show word "   at bus stop " current_stop
+        ]
+      ]  
+    ]     
   ]
   
   ;show route_position
-  travel-to item route_position itinerary  
+  travel-to next_bus_stop  
   
   
 end

@@ -50,7 +50,7 @@ to setup
   get-daily-ridership-schedule
   update-bus-stops
   setup-costs
-  add-bus 1
+  add-bus 3
 end
 
 to calculate-average-travelling-time
