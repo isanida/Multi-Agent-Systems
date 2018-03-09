@@ -148,74 +148,102 @@ to execute-actions
   [
     if (count buses) < 4
     [
-      ; Just add 19 buses :)
+      ; Just add 4 buses :)
       
       if ticks mod 5 = 0 [
         add-bus 3 count buses + 1
       ]
     ]
   ]
-  
-  if length inbox > 0
+  if ticks mod 10 = 0 
   [
-    let other_busy_buses 0
-    let received_responses 0
-    
+    ask buses
+    [
+      if bus_id = 1
+      [
+
+        foreach n-values (count buses - 2) [ ? + 1]
+        [
+          let response list 1 0
+          send-message (?+2) response
+        ]
+      ]
+    ]
+  ]
+  
+  
+  let total_vote 0
+  if length inbox > 0
+  [    
     foreach inbox
     [
       ; type 1 message
       if item 0 item 2 ?1 = 1
       [
-        let other-bus-id item 1 item 2 ?1
-        
-        ; if it's on my line, add the sender id to the list
-        if item 2 item 2 ?1 = line_id and not member? other-bus-id other-buses-on-my-line
+        ; Get the number of passengers on the bus and the number os potential passengers.
+        ; Use this number to calculate the vote probability
+        ; Using: voteprob = ((bus_passengers/bus_capacity) + (Waiting_next_stations/total_waiting)) / 2
+        ; Send this information back to bus 1
+        let vote_prob 0
+        let total_pass total_waiting_passengers current_stop
+        if bus_passengers > 0.8 * capacity 
         [
-          set other-buses-on-my-line lput other-bus-id other-buses-on-my-line
-          
-          let response list 1 bus_id
-          set response lput line_id response
-          
-          send-message other-bus-id response
+          set vote_prob vote_prob + (bus_passengers / capacity)
         ]
+        let other_stations get_waiting_pass_for_next_stations current_stop
+        let all_waiting total_waiting_passengers current_stop
+        set vote_prob vote_prob + (other_stations / all_waiting)
+        set vote_prob vote_prob / 2
+        let response list 2 vote_prob
+        send-message 1 response
       ]
       
       ; type 2 message
       if item 0 item 2 ?1 = 2
       [
-        let fullness 0
-        if length bus_passengers > (0.95 * capacity)
+        let vote_prob 0
+        ; Get the vote of bus 1
+        ; F
+        if bus_passengers > 0.8 * capacity 
         [
-          set fullness 1
+          set vote_prob vote_prob + (bus_passengers / capacity)
         ]
-        let response list 3 fullness
-        let transmitter_id item 1 item 2 ?1
-        ;show(word "Transmitter ID: " transmitter_id)
-        send-message transmitter_id response
+        let other_stations get_waiting_pass_for_next_stations current_stop
+        let all_waiting total_waiting_passengers current_stop
+        set vote_prob vote_prob + (other_stations / all_waiting)
+        set total_vote total_vote + vote_prob
+        
+        ; Receive votes from the other busses
+        set vote_prob item 1 item 2 ?1
+        set total_vote total_vote + vote_prob
+        show(word "Received response " vote_prob)
+        
+        
       ]
       
-      ; type 3 message
-      if item 0 item 2 ?1 = 3
-      [
-        set received_responses received_responses + 1
-        let fullness item 1 item 2 ?1
-        show(word "Received response " fullness)
-        if fullness = 1
-        [
-          set other_busy_buses other_busy_buses + 1
-        ]
-      ]
-    ]
-    
+;      ; type 3 message
+;      if item 0 item 2 ?1 = 3
+;      [
+;        set received_responses received_responses + 1
+;        let fullness item 1 item 2 ?1
+;        show(word "Received response " fullness)
+;        if fullness = 1
+;        [
+;          set other_busy_buses other_busy_buses + 1
+;        ]
+
+    set total_vote (total_vote / (count buses))
     ;if other_busy_buses >= min list max (list 1 length other-buses-on-my-line) 5
-    if other_busy_buses = received_responses and received_responses > 0
+    if total_vote > 0.7
     [
       show(word "Adding bus on line " line_id " because other buses are full")
-      add-bus 3 line_id
+      ; TODO (Remove random here cause now it initializes a random line)
+      add-bus 3 (random (4 - 1) + 1)
     ]
       
     set inbox []
   ]
+ ]
   
   
   ifelse length bus_passengers < (0.5 * capacity)
@@ -349,14 +377,73 @@ to execute-actions
   
 end
 
+  
+to-report total_waiting_passengers [stop_id]
+  let pass 0
+  let stops all_stops stop_id
+  foreach remove-duplicates stops
+  [
+    foreach passengers_waiting
+    [
+      set pass pass + length passengers_waiting
+    ]
+  ]
+  report pass
+end
+
+  
+to-report all_stops [stop_id]
+  let stops sentence graph
+;  foreach graph
+;  [set stops ? stops]
+  remove stops stop_id
+  report stops
+end
+    
+to-report next_possible_stops [stop_id]
+  let stops []
+  foreach graph
+  [
+    if member? stop_id ?
+    [
+      set stops lput (remove ? stop_id) stops
+    ]
+  ]
+
+  report stops
+end
+      
+    
+to-report get_waiting_pass_for_next_stations [b_id]
+  ask buses
+  [
+    let pass 0
+    let bus_stop current_stop
+    let next_stops next_possible_stops bus_stop
+    foreach remove-duplicates next_stops
+    [
+      ask bus_stop ?
+      [
+        foreach passengers_waiting
+        [
+          set pass pass + length passengers_waiting
+        ]
+      ]
+    ]
+  ]
+  report pass
+end
+  
 
 to-report get_waiting_pass_for_line [l_id]
+  ; TODO return a list of bus_stops instead of bus_stop ids for ask bus_stop ?
   let stops get_stops_for_line l_id
   let pass 0
   
   foreach remove-duplicates stops
   [
-    ask bus_stop ?1 
+    
+    ask bus_stop ?
     [ 
       ifelse ?1 = 3
       [
