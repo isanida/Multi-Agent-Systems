@@ -67,7 +67,7 @@ end
 
 to execute-actions
   
-  if ticks mod 20 = 0 and bus_id = 24 and count buses < 20
+  if ticks mod 20 = 0 and bus_id = 24 and count buses < 10
   [
     add-bus 3
   ]
@@ -100,6 +100,7 @@ to execute-actions
   
   if current_stop != -1
   [    
+    
     ; Always drop off passengers at their destination
 
     foreach bus_passengers
@@ -155,7 +156,13 @@ to execute-actions
         let best_bus_stop item argmin connected_bus_stops
         
         let old_value item argmin passenger_votes
-        set passenger_votes replace-item argmin passenger_votes (old_value + 1)
+        ifelse best_bus_stop = destination
+        [
+          set passenger_votes replace-item argmin passenger_votes (old_value + 2)
+        ]
+        [
+          set passenger_votes replace-item argmin passenger_votes (old_value + 1)
+        ]
       ]
     ]
     
@@ -163,11 +170,13 @@ to execute-actions
     
     ;show(word "Passenger votes: " passenger_votes)
     
-    let total_votes []
-    (foreach pass_waiting_at_next_stops passenger_votes
-    [
-      set total_votes lput (?1 + ?2) total_votes
-    ])
+    ;let total_votes []
+    ;(foreach pass_waiting_at_next_stops passenger_votes 
+    ;[
+    ;  set total_votes lput (?1 + ?2 * 10) total_votes
+    ;])
+    
+    let total_votes passenger_votes
     
     ;show(word "Total votes: " total_votes)
     
@@ -175,12 +184,26 @@ to execute-actions
     
     ; Find the argmax of the list with passengers waiting at connected bus stops (netlogo has no direct argmax function)
     let max_passengers max total_votes
-    let argmax position max_passengers total_votes
+    let argmaxs []
+    let index 0
+    foreach total_votes
+    [
+      if max_passengers = ?1
+      [
+        set argmaxs lput index argmaxs
+        
+      ]
+      set index index + 1
+    ]
+    
+    let argmax one-of argmaxs
+    ;let argmax position max_passengers total_votes
+    
     
     ; Determine what the next bus stop is
     set next_bus_stop item argmax connected_bus_stops
     let next_bus_stop_name item next_bus_stop amsterdam_bus_stops_names
-    ; show(word "Next bus stop: " next_bus_stop_name)
+    
     
     let all_zero true
     foreach total_votes
@@ -193,6 +216,7 @@ to execute-actions
       set next_bus_stop one-of connected_bus_stops
     ]
     
+    ;show(word "Next bus stop: " next_bus_stop_name)
     
     let current_stop_x_cor item current_stop xs
     let current_stop_y_cor item current_stop ys
@@ -209,12 +233,16 @@ to execute-actions
         let destination_x_cor item destination xs
         let destination_y_cor item destination ys
         
+        ;show(word "Destination of passenger: " item destination amsterdam_bus_stops_names)
+        
         let dist_here_to_dest sqrt ((current_stop_x_cor - destination_x_cor)*(current_stop_x_cor - destination_x_cor) + (current_stop_y_cor - destination_y_cor)*(current_stop_y_cor - destination_y_cor))
         let dist_next_stop_to_dest sqrt ((next_stop_x_cor - destination_x_cor)*(next_stop_x_cor - destination_x_cor) + (next_stop_y_cor - destination_y_cor)*(next_stop_y_cor - destination_y_cor))
         
+        
+        
+        ;show(word "Current stop " item current_stop amsterdam_bus_stops_names "Next stop "  next_bus_stop_name)
         if dist_next_stop_to_dest > dist_here_to_dest
         [
-          ;show(word "Current stop " item current_stop amsterdam_bus_stops_names "Next stop "  next_bus_stop_name)
           ;show(word "So dropping passenger with destination " item destination amsterdam_bus_stops_names)
           drop-off-passenger item 0 ? 
         ]
