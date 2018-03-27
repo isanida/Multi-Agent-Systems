@@ -20,10 +20,14 @@ buses-own [
   next_bus_stop
   
   total_dropped_pass
+  bus_data
   
   itinerary
   route_position
   direction       ; Direction wrt itinerary
+  new-bus-counter
+  bus_counter
+  total_bus_capacity
 
 ]
  
@@ -40,7 +44,9 @@ to init-buses
     "Leidseplein" "Lelylaan" "Muiderpoort" "Museumplein" "RAI" "SciencePark" "Sloterdijk"
     "Surinameplein" "UvA" "VU" "Waterlooplein" "Weesperplein" "Wibautstraat" "Zuid"]
   
-  
+  set new-bus-counter 10
+  set bus_data []
+  set bus_counter 1
 
   ; only use this to initialize agent variables, everything else in execute=actions 
 
@@ -62,14 +68,99 @@ to init-buses
   
   set color green;
   
-  set total_dropped_pass 0
+  set total_dropped_pass 0current_stop
 end
+
+to-report get-total-waiting-passengers 
+  ; get the total number of waiting passengers at all stops
+  let waiting-passengers 0
+  let stop_ids n-values 23 [ ? + 1 ]
+  foreach stop_ids [
+    ;show(get-passengers-at-stop ?)
+    set waiting-passengers waiting-passengers + length(get-passengers-at-stop ?)
+  ]
+  report waiting-passengers
+end
+
+to-report get-total-waiting-passengers-this-next-station
+  ; get the total number of waiting passengers at all stops
+  let waiting-passengers 0
+  ; create list of all stops toobserve
+  let connected-stops item current_stop graph
+  set connected-stops sentence connected-stops item next_stop graph
+  set connected-stops remove-duplicates connected-stops
+  foreach connected-stops [
+    ;show(get-passengers-at-stop ?)
+    set waiting-passengers waiting-passengers + length(get-passengers-at-stop ?)
+  ]
+  report waiting-passengers
+end  
+
+to-report inbox-duplicate list element
+  foreach list
+  [
+    if item 1 ? element
+    [
+      report position element list
+    ]
+  ]
+  report False
+end
+
+to-report capacity-needs bus_data
+  let capacity_need 0
+  foreach bus_data
+  [
+    set capacity_need capacity_need + (last ?)
+  ]
+  report capacity_need
+end
+
+to-report decide_bus_type [capacity bus_counter total_bus_capacity]
+  ifelse bus_type = 1
+  [
+    set capacity 12
+  ]
+  [
+    ifelse bus_type = 2
+    [
+      set capacity 60 
+    ]
+    [
+      set capacity 150
+    ] 
+  ]
 
 to execute-actions
   
-  if ticks mod 20 = 0 and bus_id = 24 and count buses < 10
+  if bus_id = 24
   [
-    add-bus 3
+    let capacity-vote 0
+    foreach inbox
+    [
+      if inbox-duplicate bus_data (item 1 ?) 
+      [
+        set bus_data remove-item ( inbox-duplicate bus_data (item 1 ?)) bus_data
+      ]     
+      set bus_data [bus_data ?]
+    ]
+    if new-bus-counter = 0 
+    [
+      let capacity_need capacity-needs bus_data
+      let bus_type decide_bus_type [capacity_need bus_counter total_bus_capacity]
+      if 
+      [
+        add-bus 
+      
+      ; if added bus
+      set bus_counter bus_counter + 1
+      set total_bus_capacity total_bus_capacity + capacity
+      
+      set bus_data []
+    ]
+    
+        
+    
   ]
   
   ; Add decision making strategies for your agents here.
@@ -179,8 +270,7 @@ to execute-actions
     let total_votes passenger_votes
     
     ;show(word "Total votes: " total_votes)
-    
-    
+       
     
     ; Find the argmax of the list with passengers waiting at connected bus stops (netlogo has no direct argmax function)
     let max_passengers max total_votes
@@ -249,6 +339,27 @@ to execute-actions
       ]
     ]
     
+    ; Decide on the necesary extra capacity needed to cover the system
+    
+    let total-waiting-passengers get-total-waiting-passengers-this-next-station
+    
+    show(total-waiting-passengers)
+    
+    
+    set new-bus-counter new-bus-counter - 1
+    if new-bus-counter = 0 
+    [
+      if (capacity - length bus_passengers) * 0.8 < total-waiting-passengers 
+      [
+        ; Compute the capacity vote
+        let capacity-vote (total-waiting-passengers - (capacity - length bus_passengers) * 0.8) 
+        ;send message
+        let message list bus_id capacity-vote current_stop
+        send-message 24 message
+        
+      ]
+      set new-bus-counter 10
+    ]
     
     
     let passengers-waiting get-passengers-at-stop current_stop
