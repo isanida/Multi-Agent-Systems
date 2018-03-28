@@ -1,0 +1,109 @@
+extensions [table]  
+  
+to-report distance_ab [index1 index2 xs ys]
+  let xa item index1 xs
+  let xb item index2 xs
+  let ya item index1 ys
+  let yb item index2 ys
+  show(word "Checking distance for " xa " " xb " " ya " " yb)
+  let dist sqrt ( (xa - xb) ^ 2 + (ya - yb) ^ 2)
+  show(word "The distance is: " dist)
+  report dist
+end  
+  
+to-report dijkstra-alg [station_a station_b nodes visited distances predecessors start_point]
+  
+  let xs [27 11 31 22 21 11 25 11 26 25 17 4 31 17 19 35 6 10 38 14 23 24 25 15]
+  let ys [7 4 30 21 18 18 30 9 24 18 14 12 13 11 3 10 26 13 11 1 16 13 11 4]
+  
+  if station_a = station_b
+  [
+    let path []
+    let endpoint True
+    show predecessors
+    while [station_b != start_point]
+    [
+      show path
+      set path lput station_b path
+      let old_station -1
+      show(word " The following are still in the predecessors: " table:keys predecessors)
+      ifelse not empty? table:keys predecessors
+      [
+        set old_station station_b
+        show(word "Now deleting : " station_b)
+        set station_b table:get predecessors station_b
+        table:remove predecessors old_station
+      ]
+      [
+        set station_b False
+      ]
+    ]
+    set path lput station_b path
+    show path
+    report path
+  ]
+    
+  if empty? visited
+  [
+    table:put distances station_a 0
+  ]
+  show(word "The start station is: " station_a)
+  let connected_nodes item station_a graph
+  let neighbor 0
+  let neighbordist 0
+  let tentativedist 0
+  
+  foreach connected_nodes
+  [
+    set neighbor ?
+    if not member? neighbor visited
+    [
+      ifelse member? neighbor table:keys distances
+      [
+        set neighbordist table:get distances neighbor
+      ]
+      [
+        set neighbordist 100000
+      ]
+      set tentativedist table:get distances station_a + (distance_ab station_a neighbor xs ys)
+      show(word "The tentative distance is: " tentativedist)
+      show(word "The neighbor distance is: " neighbordist)
+      if tentativedist < neighbordist
+      [
+        table:put distances neighbor tentativedist
+        table:put predecessors neighbor station_a
+      ]
+    ]
+  ]
+  set visited lput station_a visited
+  let unvisited []
+  foreach nodes
+  [
+    if not member? ? visited
+    [
+      set unvisited lput ? unvisited
+    ]
+  ]
+  let min_dist 100000
+  let closest_node -1
+  show(word "The distance table: " distances)
+  
+  foreach unvisited
+  [
+    if member? ? table:keys distances
+    [
+      if table:get distances ? < min_dist
+      [
+        set min_dist (table:get distances ?)
+        set closest_node ?
+      ]
+    ]
+  ]
+  report dijkstra-alg closest_node station_b nodes visited distances predecessors start_point
+end
+          
+          
+        
+      
+    
+
