@@ -1,4 +1,4 @@
-__includes [ "agents.nls" ]
+__includes [ "agents.nls" "dijkstra.nls" ]
 
 breed [bus_stops bus_stop]
 undirected-link-breed [routes route]

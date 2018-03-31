@@ -1,0 +1,147 @@
+extensions [table]  
+  
+to-report distance_ab [index1 index2]
+  let xa item index1 xcs
+  let xb item index2 xcs
+  let ya item index1 ycs
+  let yb item index2 ycs
+  ;show(word "Checking distance for " xa " " xb " " ya " " yb)
+  let dist sqrt ( (xa - xb) ^ 2 + (ya - yb) ^ 2)
+  ;show(word "The distance is: " dist)
+  report dist
+end  
+  
+to-report dijkstra-alg [station_a station_b nodes visited distances predecessors start_point]
+  
+  
+  
+  if station_a = station_b
+  [
+    let path []
+    let endpoint True
+    ;show predecessors
+    while [station_b != start_point]
+    [
+      ;show path
+      set path lput station_b path
+      let old_station -1
+      ;show(word " The following are still in the predecessors: " table:keycs predecessors)
+      ifelse not empty? table:keys predecessors
+      [
+        set old_station station_b
+        ;show(word "Now deleting : " station_b)
+        set station_b table:get predecessors station_b
+        table:remove predecessors old_station
+      ]
+      [
+        set station_b False
+      ]
+    ]
+    set path lput station_b path
+    ;show path
+    report path
+  ]
+    
+  if empty? visited
+  [
+    table:put distances station_a 0
+  ]
+  ;show(word "The start station is: " station_a)
+  let connected_nodes item station_a graph
+  let neighbor 0
+  let neighbordist 0
+  let tentativedist 0
+  
+  foreach connected_nodes
+  [
+    set neighbor ?
+    if not member? neighbor visited
+    [
+      ifelse member? neighbor table:keys distances
+      [
+        set neighbordist table:get distances neighbor
+      ]
+      [
+        set neighbordist 100000
+      ]
+      set tentativedist table:get distances station_a + (distance_ab station_a neighbor)
+      ;show(word "The tentative distance is: " tentativedist)
+      ;show(word "The neighbor distance is: " neighbordist)
+      if tentativedist < neighbordist
+      [
+        table:put distances neighbor tentativedist
+        table:put predecessors neighbor station_a
+      ]
+    ]
+  ]
+  set visited lput station_a visited
+  let unvisited []
+  foreach nodes
+  [
+    if not member? ? visited
+    [
+      set unvisited lput ? unvisited
+    ]
+  ]
+  let min_dist 100000
+  let closest_node -1
+  ;show(word "The distance table: " distances)
+  
+  foreach unvisited
+  [
+    if member? ? table:keys distances
+    [
+      if table:get distances ? < min_dist
+      [
+        set min_dist (table:get distances ?)
+        set closest_node ?
+      ]
+    ]
+  ]
+  report dijkstra-alg closest_node station_b nodes visited distances predecessors start_point
+end
+          
+          
+        
+to-report get_dist_using_dijkstra [start_point end_point]
+  
+  if start_point = end_point
+  [
+    report 0
+  ]
+  
+  if item (start_point) (item (end_point) distance_table) = 0
+  [
+    ; Calculate the distance
+    let nodes (n-values 24 [?])
+    let visited []
+    let distances_dijkstra table:make
+    let predecessors table:make
+    let stops_start_to_end dijkstra-alg start_point end_point nodes visited distances_dijkstra predecessors start_point
+    
+    ;show(stops_start_to_end)
+    
+    let total_dist 0
+    let prev_point -1
+    foreach stops_start_to_end
+    [
+      ifelse prev_point = -1
+      [
+        set prev_point ?1
+      ]
+      [
+        set total_dist total_dist + distance_ab prev_point ?1
+        set prev_point ?1
+      ]
+    ]
+    
+    ; Store the distance in the table for future reference
+    let new_row replace-item (start_point) item (end_point) distance_table total_dist
+    set distance_table replace-item (end_point) distance_table new_row
+  ]
+  
+  let table_dist item (start_point) (item (end_point) distance_table)
+  
+  report table_dist
+
+end

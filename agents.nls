@@ -27,7 +27,7 @@ buses-own [
 
 ]
  
-globals [graph xcs ycs]
+globals [graph xcs ycs distance_table]
 
 
 
@@ -43,6 +43,12 @@ to init-buses
     "Evertsenstraat" "Floradorp" "Haarlemmermeerstation" "Hasseltweg" "Hendrikkade"
     "Leidseplein" "Lelylaan" "Muiderpoort" "Museumplein" "RAI" "SciencePark" "Sloterdijk"
     "Surinameplein" "UvA" "VU" "Waterlooplein" "Weesperplein" "Wibautstraat" "Zuid"]
+  
+  if distance_table = 0
+  [
+    set distance_table n-values 24 [n-values 24 [0]]
+  ]
+  
   
   set xcs [27 11 31 22 21 11 25 11 26 25 17 4 31 17 19 35 6 10 38 14 23 24 25 15]
   set ycs [7 4 30 21 18 18 30 9 24 18 14 12 13 11 3 10 26 13 11 1 16 13 11 4]
@@ -71,8 +77,47 @@ to init-buses
 end
 
 
+
+
+
+
+
 to-report get_next_bus_stop_from_votes [votes connected_bus_stops current_stop_x_cor current_stop_y_cor]
   ; Find the argmax of the list with passengers waiting at connected bus stops (netlogo has no direct argmax function)
+  
+;  let message (word "Votes: " votes)
+;  ;print-for-single-bus 24 message
+;  
+;  let following_stop 0
+;  let total_votes sum votes
+;  
+;  ifelse total_votes = 0
+;  [
+;    set following_stop one-of connected_bus_stops
+;  ]
+;  [
+;    let random_int random total_votes
+;    set message (word "Total votes: " total_votes " Random int " random_int)
+;    ;print-for-single-bus 24 message
+;  
+;    let accumulated_votes 0
+;    let idx 0
+;    foreach votes
+;    [
+;      set accumulated_votes accumulated_votes + ?1
+;      if random_int < accumulated_votes
+;      [
+;        set following_stop item idx connected_bus_stops
+;        set message (word "Choosing bus stop " idx)
+;        ;print-for-single-bus 24 message
+;        report following_stop
+;      ]
+;      set idx idx + 1
+;    ]
+;  ]
+;  
+;  report following_stop
+  
   let max_votes max votes
   let argmaxs []
   let index 0
@@ -131,7 +176,7 @@ end
 
 to execute-actions
   
-  if ticks mod 20 = 0 and bus_id = 24 and count buses < 10
+  if ticks mod 20 = 0 and bus_id = 24 and count buses < 20
   [
     add-bus 3
   ]
@@ -163,6 +208,14 @@ to execute-actions
   
   if current_stop != -1
   [
+    let message (word " ")
+    ;print-for-single-bus 24 message
+    
+    ;let dist_to_cent get_dist_using_dijkstra current_stop 3
+    ;set message (word "Distance to Central: " dist_to_cent)
+    ;print-for-single-bus 24 message
+    
+    
     let current_stop_x_cor item current_stop xcs
     let current_stop_y_cor item current_stop ycs
     
@@ -176,7 +229,9 @@ to execute-actions
 
       drop-off-passenger item 0 ? 
     ]
-    ;show(word "Total succesfully dropped off " total_dropped_pass)
+    
+    set message (word "Total succesfully dropped off " total_dropped_pass)
+    ;print-for-single-bus 24 message
     
     
     ; Find the connected bus stops
@@ -201,6 +256,10 @@ to execute-actions
     
     let pass_at_this_stop get-passengers-at-stop current_stop
     ;show(word "Number of passengers at this stop: " length pass_at_this_stop)
+    set message (word "Number of passengers at this stop: " length pass_at_this_stop)
+    ;print-for-single-bus 24 message
+    
+    
     foreach pass_at_this_stop
     [
       let pass_id item 0 ?1
@@ -215,10 +274,10 @@ to execute-actions
       let distances []
       foreach connected_bus_stops
       [
-        let stop_x_cor item ?1 xcs
-        let stop_y_cor item ?1 ycs
+        ;let stop_x_cor item ?1 xcs
+        ;let stop_y_cor item ?1 ycs
         
-        let dist sqrt ((stop_x_cor - destination_x_cor)*(stop_x_cor - destination_x_cor) + (stop_y_cor - destination_y_cor)*(stop_y_cor - destination_y_cor))
+        let dist get_dist_using_dijkstra ?1 dest
         set distances lput dist distances
       ]
       
@@ -241,7 +300,7 @@ to execute-actions
         let old_value item ?1 votes
         ifelse this_bus_stop = dest
         [
-          set votes replace-item ?1 votes (old_value + amount_of_votes)
+          set votes replace-item ?1 votes ((old_value + amount_of_votes) * 2)
         ]
         [
           set votes replace-item ?1 votes (old_value + amount_of_votes)
@@ -256,8 +315,8 @@ to execute-actions
 
     let total_votes votes
     
-    let message word "Total votes: " total_votes
-    print-for-single-bus 24 message
+    set message word "Total votes: " total_votes
+    ;print-for-single-bus 24 message
     
     
     let following_stop get_next_bus_stop_from_votes votes connected_bus_stops current_stop_x_cor current_stop_y_cor
@@ -273,23 +332,11 @@ to execute-actions
     set next_bus_stop following_stop
     
     
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
     let next_bus_stop_name 0
     set next_bus_stop_name item next_bus_stop amsterdam_bus_stops_names
     ;show(word "Next bus stop: " next_bus_stop_name)
     set message word "Next bus stop: " next_bus_stop_name
-    print-for-single-bus 24 message
+    ;print-for-single-bus 24 message
     
     
     ;let current_stop_x_cor item current_stop xs
@@ -319,20 +366,23 @@ to execute-actions
           let dist_here_to_dest sqrt ((current_stop_x_cor - destination_x_cor)*(current_stop_x_cor - destination_x_cor) + (current_stop_y_cor - destination_y_cor)*(current_stop_y_cor - destination_y_cor))
           let dist_next_stop_to_dest sqrt ((next_stop_x_cor - destination_x_cor)*(next_stop_x_cor - destination_x_cor) + (next_stop_y_cor - destination_y_cor)*(next_stop_y_cor - destination_y_cor))
           
-          ifelse dist_next_stop_to_dest < dist_here_to_dest
+          let is_next_stop_connected_to_dest member? destination (item next_bus_stop graph)
+          
+          ifelse dist_next_stop_to_dest < dist_here_to_dest or is_next_stop_connected_to_dest
           [
             pick-up-passenger item 0 ? 
             set pickedup pickedup + 1
             ;show(word "Picked up passenger going to " item destination amsterdam_bus_stops_names)
           ]
           [
-            ;show(word "Didn't pick up pass going to " item destination amsterdam_bus_stops_names " because it is further away")
+            set message (word "Didn't pick up pass going to " item destination amsterdam_bus_stops_names " because it is further away")
+            ;print-for-single-bus 24 message
           ]
         ]
         [
           ;show(word "Didn't pick up pass going to " item destination amsterdam_bus_stops_names " because we are already there")
           set message (word "Didn't pick up pass going to " item destination amsterdam_bus_stops_names " because we are already there")
-          print-for-single-bus 24 message
+          ;print-for-single-bus 24 message
         ]
       ]
       [
@@ -341,7 +391,9 @@ to execute-actions
     ]    
     
     set message word "Picked up passengers: " pickedup
-    print-for-single-bus 24 message
+    ;print-for-single-bus 24 message
+    set message word "Next bus stop: " next_bus_stop_name
+    ;print-for-single-bus 24 message
   ]
   
   ;show route_position
