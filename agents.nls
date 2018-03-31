@@ -20,11 +20,15 @@ buses-own [
   next_bus_stop
   
   total_dropped_pass
+  bus_data
   
   itinerary
   route_position
   direction       ; Direction wrt itinerary
-
+  new-bus-counter
+  bus_counter
+  total_bus_capacity
+  capacity_need
 ]
  
 globals [graph xcs ycs distance_table]
@@ -50,8 +54,14 @@ to init-buses
   ]
   
   
+
+  set new-bus-counter 10
+  set bus_data []
+  set bus_counter 1
+
   set xcs [27 11 31 22 21 11 25 11 26 25 17 4 31 17 19 35 6 10 38 14 23 24 25 15]
   set ycs [7 4 30 21 18 18 30 9 24 18 14 12 13 11 3 10 26 13 11 1 16 13 11 4]
+
 
   ; only use this to initialize agent variables, everything else in execute=actions 
 
@@ -73,7 +83,90 @@ to init-buses
   
   set color green;
   
-  set total_dropped_pass 0
+  set total_dropped_pass current_stop
+end
+
+to-report get-total-waiting-passengers 
+  ; get the total number of waiting passengers at all stops
+  let waiting-passengers 0
+  let stop_ids n-values 23 [ ? + 1 ]
+  foreach stop_ids [
+    ;show(get-passengers-at-stop ?)
+    set waiting-passengers waiting-passengers + length(get-passengers-at-stop ?)
+  ]
+  report waiting-passengers
+end
+
+
+to-report get-total-waiting-passengers-this-next-station
+  ; get the total number of waiting passengers at all stops
+  let waiting-passengers length(get-passengers-at-stop current_stop)
+  ; create list of all stops toobserve
+  let connected-stops item current_stop graph
+  if next_stop > -1
+  [
+    set connected-stops sentence connected-stops item next_stop graph
+    set connected-stops remove-duplicates connected-stops
+    foreach connected-stops [
+      ;show(get-passengers-at-stop ?)
+      set waiting-passengers waiting-passengers + length(get-passengers-at-stop ?)
+    ]
+  ]
+  report waiting-passengers
+end  
+
+to-report inbox-duplicate [list1 element]
+  foreach list1
+  [
+    if item 1 ? = element
+    [
+      report position element list1
+    ]
+  ]
+  report False
+end
+
+to-report capacity-needs 
+  set capacity_need 0
+  foreach bus_data
+  [
+    ;show(?)
+    set capacity_need capacity_need + (last ?)
+  ]
+  report capacity_need
+end
+
+to-report decide_bus_type
+  ; Given the needed extra capacity and the total capacity of the current busses
+  ; Find the needed capacity of the new bus
+  let bus_no_factor -1 * ln(0.03 * bus_counter + 1) + 1
+  let bustype 0
+  let final_capacity_need bus_no_factor * capacity_need
+;  ifelse final_capacity_need < 6
+;  [
+;    set bustype 0
+;  ]
+;  [
+;    ifelse final_capacity_need < 36
+;    [
+;      set bustype 1
+;    ]
+;    [
+;      ifelse final_capacity_need < 105
+;      [
+;        set bustype 2
+;      ]
+;      [
+;        set bustype 3
+;      ] 
+;    ]
+;  ]
+  if final_capacity_need > 150
+  [
+    set bustype 3
+  ]
+
+  report bustype
 end
 
 
@@ -83,41 +176,7 @@ end
 
 
 to-report get_next_bus_stop_from_votes [votes connected_bus_stops current_stop_x_cor current_stop_y_cor]
-  ; Find the argmax of the list with passengers waiting at connected bus stops (netlogo has no direct argmax function)
-  
-;  let message (word "Votes: " votes)
-;  ;print-for-single-bus 24 message
-;  
-;  let following_stop 0
-;  let total_votes sum votes
-;  
-;  ifelse total_votes = 0
-;  [
-;    set following_stop one-of connected_bus_stops
-;  ]
-;  [
-;    let random_int random total_votes
-;    set message (word "Total votes: " total_votes " Random int " random_int)
-;    ;print-for-single-bus 24 message
-;  
-;    let accumulated_votes 0
-;    let idx 0
-;    foreach votes
-;    [
-;      set accumulated_votes accumulated_votes + ?1
-;      if random_int < accumulated_votes
-;      [
-;        set following_stop item idx connected_bus_stops
-;        set message (word "Choosing bus stop " idx)
-;        ;print-for-single-bus 24 message
-;        report following_stop
-;      ]
-;      set idx idx + 1
-;    ]
-;  ]
-;  
-;  report following_stop
-  
+  ; Find the argmax of the list with passengcreate list of lists netlogoers waiting at connected bus stops (netlogo has no direct argmax function)
   let max_votes max votes
   let argmaxs []
   let index 0
@@ -137,26 +196,7 @@ to-report get_next_bus_stop_from_votes [votes connected_bus_stops current_stop_x
     set following_stop one-of connected_bus_stops
   ]
   [
-    let shortest_distance 100
-    ifelse length argmaxs > 1
-    [
-      foreach argmaxs
-      [
-        let this_stop item ?1 connected_bus_stops
-        let destination_x_cor item this_stop xcs
-        let destination_y_cor item this_stop ycs
-        let dist_to_stop sqrt ((current_stop_x_cor - destination_x_cor)*(current_stop_x_cor - destination_x_cor) + (current_stop_y_cor - destination_y_cor)*(current_stop_y_cor - destination_y_cor))
-        if dist_to_stop < shortest_distance
-        [
-          set shortest_distance dist_to_stop
-          set following_stop item ?1 connected_bus_stops
-          ;show(word "Picking " ?1 " because it is closer")
-        ]
-      ]
-    ]
-    [
-      set following_stop item (item 0 argmaxs) connected_bus_stops
-    ]
+    set following_stop item (one-of argmaxs) connected_bus_stops
   ]
   
   report following_stop
@@ -166,20 +206,79 @@ end
 to print-for-single-bus [id message]
   if bus_id = id
   [
-    show(message)
+    ;show(message)
   ]
 end
 
 
-
-
-
 to execute-actions
   
-  if ticks mod 20 = 0 and bus_id = 24 and count buses < 20
+  if bus_id = 24
   [
-    add-bus 3
+    if ticks mod 20 = 0 and bus_id = 24 and count buses < 40
+    [
+      add-bus 3
+    ]
   ]
+  
+  
+;  if bus_id = 24
+;  [
+;    ifelse bus_counter < 4
+;    [
+;      add-bus 3
+;      set bus_counter bus_counter + 1
+;      set total_bus_capacity total_bus_capacity + capacity
+;    ]
+;    [
+;
+;      let capacity-vote 0
+;      
+;      foreach inbox
+;      [
+;        
+;        ;show(word "inbox")
+;        ;show(word "Inbox " ?1)
+;        if length(bus_data) > 0
+;        [
+;          if inbox-duplicate bus_data (item 1 (last ?))
+;          [
+;            set bus_data remove-item ( inbox-duplicate bus_data (item 3 ?)) bus_data
+;          ]     
+;          
+;        ]
+;        ifelse length bus_data > 0
+;        [
+;          set bus_data lput (last ?) bus_data 
+;        ]
+;        [
+;          let data last ?
+;          set bus_data []
+;          set bus_data lput data bus_data 
+;        ]
+;        set inbox []
+;      ]
+;      ;show(word "data")
+;      ;show bus_data
+;      if new-bus-counter = 0 
+;      [
+;        ;show(word "Working?")
+;        set capacity_need capacity-needs
+;        show(word "Capacity_need is: " capacity_need)
+;        let bustype decide_bus_type
+;        ;show(word "New bus type is: " bustype)
+;        ; if decide to add bus
+;        if bustype > 0
+;        [
+;          add-bus bustype
+;          ;show(word "New bus initialized")
+;          set bus_counter bus_counter + 1
+;          set total_bus_capacity total_bus_capacity + capacity
+;          set bus_data []
+;        ]     
+;      ]     
+;    ]
+;  ]
   
   ; Add decision making strategies for your agents here.
   ; You are allowed to use the global variable 'ticks'.
@@ -241,13 +340,25 @@ to execute-actions
     ; Find the names of the connected bus stops, and the amount of passengers waiting at these stops
     let stop_names []
     let pass_waiting_at_next_stops []
+    let print_votes false
     foreach connected_bus_stops
     [
       let stop_name item ?1 amsterdam_bus_stops_names
       set stop_names lput stop_name stop_names
-      let pass_waiting_at_next_stop length get-passengers-at-stop ?1
+      let pass_waiting_at_next_stop 0
+      ifelse current_stop = 9 and ?1 = 8
+      [
+        set pass_waiting_at_next_stop (length get-passengers-at-stop 8 + length get-passengers-at-stop 2 + length get-passengers-at-stop 6)
+        ;show(word "North passengers: " pass_waiting_at_next_stop)
+        set print_votes true
+      ]
+      [
+        set pass_waiting_at_next_stop length get-passengers-at-stop ?1
+      ]
+      
       set pass_waiting_at_next_stops lput pass_waiting_at_next_stop pass_waiting_at_next_stops
     ]
+    
     
     ;show(word "Connected bus stops: " stop_names)
     
@@ -308,18 +419,21 @@ to execute-actions
       ]
     ]
     
-;    let total_votes []
-;    (foreach votes pass_waiting_at_next_stops [
-;      set total_votes lput (?1 + ?2) total_votes
-;    ])
+    
+    
+    let total_votes []
+    (foreach votes pass_waiting_at_next_stops [
+      set total_votes lput (?1 + 10 * (?2)) total_votes
+    ])
+    
 
-    let total_votes votes
+    ;let total_votes votes
     
     set message word "Total votes: " total_votes
     ;print-for-single-bus 24 message
     
     
-    let following_stop get_next_bus_stop_from_votes votes connected_bus_stops current_stop_x_cor current_stop_y_cor
+    let following_stop get_next_bus_stop_from_votes total_votes connected_bus_stops current_stop_x_cor current_stop_y_cor
     ;show(word "Following stop " following_stop " next stop " next_stop)
     if following_stop = previous_stop and following_stop != -1
     [
@@ -329,22 +443,44 @@ to execute-actions
       set following_stop get_next_bus_stop_from_votes votes connected_bus_stops current_stop_x_cor current_stop_y_cor
     ]
     
+    ;show(word "Total votes: " total_votes)
     set next_bus_stop following_stop
     
+
+    ; Decide on the necesary extra capacity needed to cover the system
     
+    let total-waiting-passengers get-total-waiting-passengers-this-next-station
+    
+    ;show(total-waiting-passengers)
+    
+    
+    if new-bus-counter = 0 
+    [
+      ;show(word " busjee")
+      if bus_id > 24
+      [
+        ;if (capacity - length bus_passengers) * 0.8 < total-waiting-passengers 
+        ; Compute the capacity vote
+        let capacity-vote (total-waiting-passengers - (capacity - length bus_passengers) * 0.8) 
+        ;send message
+        set message (list bus_id capacity-vote current_stop)
+        ;show message
+        send-message 24 message
+        
+      ]
+      set new-bus-counter 10
+    ]
+    set new-bus-counter new-bus-counter - 1
+
     let next_bus_stop_name 0
     set next_bus_stop_name item next_bus_stop amsterdam_bus_stops_names
     ;show(word "Next bus stop: " next_bus_stop_name)
     set message word "Next bus stop: " next_bus_stop_name
     ;print-for-single-bus 24 message
     
-    
-    ;let current_stop_x_cor item current_stop xs
-    ;let current_stop_y_cor item current_stop ys
-    
     let next_stop_x_cor item next_bus_stop xcs
     let next_stop_y_cor item next_bus_stop ycs
-    
+
     
     let passengers-waiting get-passengers-at-stop current_stop
     
@@ -358,13 +494,9 @@ to execute-actions
         ; Do not pick up passengers who are already at their destination
         ifelse current_stop != item 1 ?
         [
-          
-          ;let destination item 1 ?1
-          let destination_x_cor item destination xcs
-          let destination_y_cor item destination ycs
-          
-          let dist_here_to_dest sqrt ((current_stop_x_cor - destination_x_cor)*(current_stop_x_cor - destination_x_cor) + (current_stop_y_cor - destination_y_cor)*(current_stop_y_cor - destination_y_cor))
-          let dist_next_stop_to_dest sqrt ((next_stop_x_cor - destination_x_cor)*(next_stop_x_cor - destination_x_cor) + (next_stop_y_cor - destination_y_cor)*(next_stop_y_cor - destination_y_cor))
+
+          let dist_here_to_dest get_dist_using_dijkstra current_stop destination
+          let dist_next_stop_to_dest get_dist_using_dijkstra next_bus_stop destination
           
           let is_next_stop_connected_to_dest member? destination (item next_bus_stop graph)
           

@@ -1,5 +1,8 @@
 __includes [ "agents.nls" "dijkstra.nls" ]
 
+
+extensions [table]
+
 breed [bus_stops bus_stop]
 undirected-link-breed [routes route]
 breed [buses bus]
@@ -244,6 +247,13 @@ to go
       update-passengers-statistics
       update-bus-stops
       ask buses [
+        let nodes (n-values 24 [?])
+        let visited []
+        let start_point 1
+        let end_point 5
+        let distances table:make
+        let predecessors table:make
+        ;show(dijkstra-alg start_point end_point nodes visited distances predecessors start_point)
         execute-actions
       ]
       add-buses

@@ -14,7 +14,6 @@ end
 to-report dijkstra-alg [station_a station_b nodes visited distances predecessors start_point]
   
   
-  
   if station_a = station_b
   [
     let path []
@@ -102,7 +101,7 @@ to-report dijkstra-alg [station_a station_b nodes visited distances predecessors
 end
           
           
-        
+
 to-report get_dist_using_dijkstra [start_point end_point]
   
   if start_point = end_point
