@@ -139,40 +139,38 @@ end
 to-report decide_bus_type
   ; Given the needed extra capacity and the total capacity of the current busses
   ; Find the needed capacity of the new bus
-  let bus_no_factor -1 * ln(0.03 * bus_counter + 1) + 1
+  let bus_no_factor -1 * ln(0.015 * bus_counter + 1) + 1
+  show(bus_no_factor)
   let bustype 0
-  let final_capacity_need bus_no_factor * capacity_need
-;  ifelse final_capacity_need < 6
-;  [
-;    set bustype 0
-;  ]
-;  [
-;    ifelse final_capacity_need < 36
-;    [
-;      set bustype 1
-;    ]
-;    [
-;      ifelse final_capacity_need < 105
-;      [
-;        set bustype 2
-;      ]
-;      [
-;        set bustype 3
-;      ] 
-;    ]
-;  ]
-  if final_capacity_need > 150
+  let final_capacity_need capacity_need
+  if random-float 1 < bus_no_factor
   [
-    set bustype 3
+    ifelse final_capacity_need < 6
+    [
+      set bustype 0
+    ]
+    [
+      ifelse final_capacity_need < 36
+      [
+        set bustype 1
+      ]
+      [
+        ifelse final_capacity_need < 105
+        [
+          set bustype 2
+        ]
+        [
+          set bustype 3
+        ] 
+      ]
+    ]
+  ;  if final_capacity_need > 150
+  ;  [
+  ;    set bustype 3
+  ;  ]
   ]
-
   report bustype
 end
-
-
-
-
-
 
 
 to-report get_next_bus_stop_from_votes [votes connected_bus_stops current_stop_x_cor current_stop_y_cor]
@@ -213,72 +211,72 @@ end
 
 to execute-actions
   
-  if bus_id = 24
-  [
-    if ticks mod 20 = 0 and bus_id = 24 and count buses < 40
-    [
-      add-bus 3
-    ]
-  ]
-  
-  
 ;  if bus_id = 24
 ;  [
-;    ifelse bus_counter < 4
+;    if ticks mod 20 = 0 and bus_id = 24 and count buses < 40
 ;    [
 ;      add-bus 3
-;      set bus_counter bus_counter + 1
-;      set total_bus_capacity total_bus_capacity + capacity
-;    ]
-;    [
-;
-;      let capacity-vote 0
-;      
-;      foreach inbox
-;      [
-;        
-;        ;show(word "inbox")
-;        ;show(word "Inbox " ?1)
-;        if length(bus_data) > 0
-;        [
-;          if inbox-duplicate bus_data (item 1 (last ?))
-;          [
-;            set bus_data remove-item ( inbox-duplicate bus_data (item 3 ?)) bus_data
-;          ]     
-;          
-;        ]
-;        ifelse length bus_data > 0
-;        [
-;          set bus_data lput (last ?) bus_data 
-;        ]
-;        [
-;          let data last ?
-;          set bus_data []
-;          set bus_data lput data bus_data 
-;        ]
-;        set inbox []
-;      ]
-;      ;show(word "data")
-;      ;show bus_data
-;      if new-bus-counter = 0 
-;      [
-;        ;show(word "Working?")
-;        set capacity_need capacity-needs
-;        show(word "Capacity_need is: " capacity_need)
-;        let bustype decide_bus_type
-;        ;show(word "New bus type is: " bustype)
-;        ; if decide to add bus
-;        if bustype > 0
-;        [
-;          add-bus bustype
-;          ;show(word "New bus initialized")
-;          set bus_counter bus_counter + 1
-;          set total_bus_capacity total_bus_capacity + capacity
-;          set bus_data []
-;        ]     
-;      ]     
 ;    ]
 ;  ]
+;  
+  
+  if bus_id = 24
+  [
+    ifelse bus_counter < 4
+    [
+      add-bus 3
+      set bus_counter bus_counter + 1
+      set total_bus_capacity total_bus_capacity + capacity
+    ]
+    [
+
+      let capacity-vote 0
+      
+      foreach inbox
+      [
+        
+        ;show(word "inbox")
+        ;show(word "Inbox " ?1)
+        if length(bus_data) > 0
+        [
+          if inbox-duplicate bus_data (item 1 (last ?))
+          [
+            set bus_data remove-item ( inbox-duplicate bus_data (item 3 ?)) bus_data
+          ]     
+          
+        ]
+        ifelse length bus_data > 0
+        [
+          set bus_data lput (last ?) bus_data 
+        ]
+        [
+          let data last ?
+          set bus_data []
+          set bus_data lput data bus_data 
+        ]
+        set inbox []
+      ]
+      ;show(word "data")
+      ;show bus_data
+      if new-bus-counter = 0 
+      [
+        ;show(word "Working?")
+        set capacity_need capacity-needs
+        show(word "Capacity_need is: " capacity_need)
+        let bustype decide_bus_type
+        ;show(word "New bus type is: " bustype)
+        ; if decide to add bus
+        if bustype > 0
+        [
+          add-bus bustype
+          ;show(word "New bus initialized")
+          set bus_counter bus_counter + 1
+          set total_bus_capacity total_bus_capacity + capacity
+          set bus_data []
+        ]     
+      ]     
+    ]
+  ]
   
   ; Add decision making strategies for your agents here.
   ; You are allowed to use the global variable 'ticks'.
@@ -444,8 +442,19 @@ to execute-actions
     ]
     
     ;show(word "Total votes: " total_votes)
-    set next_bus_stop following_stop
-    
+    ifelse amount_passengers_waiting = 0
+    [
+      ifelse length bus_passengers = 0
+      [
+        set next_bus_stop current_stop
+      ]
+      [
+        set next_bus_stop following_stop
+      ]
+    ]
+    [
+      set next_bus_stop following_stop
+    ]         
 
     ; Decide on the necesary extra capacity needed to cover the system
     
@@ -453,81 +462,82 @@ to execute-actions
     
     ;show(total-waiting-passengers)
     
-    
-    if new-bus-counter = 0 
+    if next_bus_stop != current_stop
     [
-      ;show(word " busjee")
-      if bus_id > 24
+      if new-bus-counter = 0 
       [
-        ;if (capacity - length bus_passengers) * 0.8 < total-waiting-passengers 
-        ; Compute the capacity vote
-        let capacity-vote (total-waiting-passengers - (capacity - length bus_passengers) * 0.8) 
-        ;send message
-        set message (list bus_id capacity-vote current_stop)
-        ;show message
-        send-message 24 message
-        
-      ]
-      set new-bus-counter 10
-    ]
-    set new-bus-counter new-bus-counter - 1
-
-    let next_bus_stop_name 0
-    set next_bus_stop_name item next_bus_stop amsterdam_bus_stops_names
-    ;show(word "Next bus stop: " next_bus_stop_name)
-    set message word "Next bus stop: " next_bus_stop_name
-    ;print-for-single-bus 24 message
-    
-    let next_stop_x_cor item next_bus_stop xcs
-    let next_stop_y_cor item next_bus_stop ycs
-
-    
-    let passengers-waiting get-passengers-at-stop current_stop
-    
-    ; At other stations, pick up anyone if capacity allows 
-    let pickedup 0
-    foreach passengers-waiting
-    [
-      let destination item 1 ?1
-      ifelse length bus_passengers < capacity
-      [
-        ; Do not pick up passengers who are already at their destination
-        ifelse current_stop != item 1 ?
+        ;show(word " busjee")
+        if bus_id > 24
         [
-
-          let dist_here_to_dest get_dist_using_dijkstra current_stop destination
-          let dist_next_stop_to_dest get_dist_using_dijkstra next_bus_stop destination
+          ;if (capacity - length bus_passengers) * 0.8 < total-waiting-passengers 
+          ; Compute the capacity vote
+          let capacity-vote (total-waiting-passengers - (capacity - length bus_passengers) * 0.8) 
+          ;send message
+          set message (list bus_id capacity-vote current_stop)
+          ;show message
+          send-message 24 message
           
-          let is_next_stop_connected_to_dest member? destination (item next_bus_stop graph)
-          
-          ifelse dist_next_stop_to_dest < dist_here_to_dest or is_next_stop_connected_to_dest
+        ]
+        set new-bus-counter 10
+      ]
+      set new-bus-counter new-bus-counter - 1
+  
+      let next_bus_stop_name 0
+      set next_bus_stop_name item next_bus_stop amsterdam_bus_stops_names
+      ;show(word "Next bus stop: " next_bus_stop_name)
+      set message word "Next bus stop: " next_bus_stop_name
+      ;print-for-single-bus 24 message
+      
+      let next_stop_x_cor item next_bus_stop xcs
+      let next_stop_y_cor item next_bus_stop ycs
+  
+      
+      let passengers-waiting get-passengers-at-stop current_stop
+      
+      ; At other stations, pick up anyone if capacity allows 
+      let pickedup 0
+      foreach passengers-waiting
+      [
+        let destination item 1 ?1
+        ifelse length bus_passengers < capacity
+        [
+          ; Do not pick up passengers who are already at their destination
+          ifelse current_stop != item 1 ?
           [
-            pick-up-passenger item 0 ? 
-            set pickedup pickedup + 1
-            ;show(word "Picked up passenger going to " item destination amsterdam_bus_stops_names)
+  
+            let dist_here_to_dest get_dist_using_dijkstra current_stop destination
+            let dist_next_stop_to_dest get_dist_using_dijkstra next_bus_stop destination
+            
+            let is_next_stop_connected_to_dest member? destination (item next_bus_stop graph)
+            
+            ifelse dist_next_stop_to_dest < dist_here_to_dest or is_next_stop_connected_to_dest
+            [
+              pick-up-passenger item 0 ? 
+              set pickedup pickedup + 1
+              ;show(word "Picked up passenger going to " item destination amsterdam_bus_stops_names)
+            ]
+            [
+              set message (word "Didn't pick up pass going to " item destination amsterdam_bus_stops_names " because it is further away")
+              ;print-for-single-bus 24 message
+            ]
           ]
           [
-            set message (word "Didn't pick up pass going to " item destination amsterdam_bus_stops_names " because it is further away")
+            ;show(word "Didn't pick up pass going to " item destination amsterdam_bus_stops_names " because we are already there")
+            set message (word "Didn't pick up pass going to " item destination amsterdam_bus_stops_names " because we are already there")
             ;print-for-single-bus 24 message
           ]
         ]
         [
-          ;show(word "Didn't pick up pass going to " item destination amsterdam_bus_stops_names " because we are already there")
-          set message (word "Didn't pick up pass going to " item destination amsterdam_bus_stops_names " because we are already there")
-          ;print-for-single-bus 24 message
+          ;show(word "Didn't pick up pass going to " item destination amsterdam_bus_stops_names " because bus is full")
         ]
-      ]
-      [
-        ;show(word "Didn't pick up pass going to " item destination amsterdam_bus_stops_names " because bus is full")
-      ]
-    ]    
-    
-    set message word "Picked up passengers: " pickedup
-    ;print-for-single-bus 24 message
-    set message word "Next bus stop: " next_bus_stop_name
-    ;print-for-single-bus 24 message
+      ]    
+      
+      set message word "Picked up passengers: " pickedup
+      ;print-for-single-bus 24 message
+      set message word "Next bus stop: " next_bus_stop_name
+      ;print-for-single-bus 24 message
+    ]
   ]
-  
   ;show route_position
   travel-to next_bus_stop  
   
