@@ -139,8 +139,8 @@ end
 to-report decide_bus_type
   ; Given the needed extra capacity and the total capacity of the current busses
   ; Find the needed capacity of the new bus
-  let bus_no_factor -1 * ln(0.015 * bus_counter + 1) + 1
-  show(bus_no_factor)
+  let bus_no_factor (-1 / 80) * bus_counter + 1
+;  show(bus_no_factor)
   let bustype 0
   let final_capacity_need capacity_need
   if random-float 1 < bus_no_factor
@@ -262,7 +262,7 @@ to execute-actions
       [
         ;show(word "Working?")
         set capacity_need capacity-needs
-        show(word "Capacity_need is: " capacity_need)
+;        show(word "Capacity_need is: " capacity_need)
         let bustype decide_bus_type
         ;show(word "New bus type is: " bustype)
         ; if decide to add bus
@@ -537,9 +537,17 @@ to execute-actions
       set message word "Next bus stop: " next_bus_stop_name
       ;print-for-single-bus 24 message
     ]
+    ;show route_position
+    
   ]
-  ;show route_position
-  travel-to next_bus_stop  
+  if next_bus_stop != current_stop
+  [
+;    show(word "next bus stop: " next_bus_stop)
+;    show(word "current bus stop: " current_stop)
+    travel-to next_bus_stop 
+  ]
+  
+  
   
   
 end
