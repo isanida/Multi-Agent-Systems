@@ -131,7 +131,8 @@ to-report capacity-needs
   foreach bus_data
   [
     ;show(?)
-    set capacity_need capacity_need + (last ?)
+    ;set capacity_need capacity_need + (last ?)
+    set capacity_need capacity_need + item 1 ?
   ]
   report capacity_need
 end
@@ -140,34 +141,34 @@ to-report decide_bus_type
   ; Given the needed extra capacity and the total capacity of the current busses
   ; Find the needed capacity of the new bus
   let bus_no_factor -1 * ln(0.015 * bus_counter + 1) + 1
-  show(bus_no_factor)
+  ;show(bus_no_factor)
   let bustype 0
   let final_capacity_need capacity_need
   if random-float 1 < bus_no_factor
   [
-    ifelse final_capacity_need < 6
+;    ifelse final_capacity_need < 6
+;    [
+;      set bustype 0
+;    ]
+;    [
+;      ifelse final_capacity_need < 36
+;      [
+;        set bustype 1
+;      ]
+;      [
+;        ifelse final_capacity_need < 105
+;        [
+;          set bustype 2
+;        ]
+;        [
+;          set bustype 3
+;        ] 
+;      ]
+;    ]
+    if final_capacity_need > 150
     [
-      set bustype 0
+      set bustype 3
     ]
-    [
-      ifelse final_capacity_need < 36
-      [
-        set bustype 1
-      ]
-      [
-        ifelse final_capacity_need < 105
-        [
-          set bustype 2
-        ]
-        [
-          set bustype 3
-        ] 
-      ]
-    ]
-  ;  if final_capacity_need > 150
-  ;  [
-  ;    set bustype 3
-  ;  ]
   ]
   report bustype
 end
@@ -218,7 +219,7 @@ to execute-actions
 ;      add-bus 3
 ;    ]
 ;  ]
-;  
+  
   
   if bus_id = 24
   [
@@ -237,6 +238,7 @@ to execute-actions
         
         ;show(word "inbox")
         ;show(word "Inbox " ?1)
+        ;show(word "length bus data " length bus_data)
         if length(bus_data) > 0
         [
           if inbox-duplicate bus_data (item 1 (last ?))
@@ -258,10 +260,12 @@ to execute-actions
       ]
       ;show(word "data")
       ;show bus_data
-      if new-bus-counter = 0 
+      if ticks mod 5 = 0
       [
+      ;if new-bus-counter = 0 
+      ;[
         ;show(word "Working?")
-        set capacity_need capacity-needs
+        set capacity_need (capacity-needs / (count buses))
         show(word "Capacity_need is: " capacity_need)
         let bustype decide_bus_type
         ;show(word "New bus type is: " bustype)
@@ -458,29 +462,37 @@ to execute-actions
 
     ; Decide on the necesary extra capacity needed to cover the system
     
-    let total-waiting-passengers get-total-waiting-passengers-this-next-station
+    ;let total-waiting-passengers get-total-waiting-passengers-this-next-station
+    let total-waiting-passengers length get-passengers-at-stop next_bus_stop
     
     ;show(total-waiting-passengers)
     
     if next_bus_stop != current_stop
     [
-      if new-bus-counter = 0 
-      [
+      ;if new-bus-counter = 0 
+      ;[
         ;show(word " busjee")
         if bus_id > 24
         [
           ;if (capacity - length bus_passengers) * 0.8 < total-waiting-passengers 
           ; Compute the capacity vote
-          let capacity-vote (total-waiting-passengers - (capacity - length bus_passengers) * 0.8) 
+          let capacity-vote (total-waiting-passengers - (capacity - length bus_passengers)) 
+          ;let capacity-vote (total-waiting-passengers) - (capacity - length bus_passengers) * 0.8
+          
+          if capacity-vote < 0
+          [
+            set capacity-vote 0
+          ]
+          ;show(word "Capacity vote " capacity-vote)
           ;send message
           set message (list bus_id capacity-vote current_stop)
           ;show message
           send-message 24 message
           
         ]
-        set new-bus-counter 10
-      ]
-      set new-bus-counter new-bus-counter - 1
+        ;set new-bus-counter 10
+      ;]
+      ;set new-bus-counter new-bus-counter - 1
   
       let next_bus_stop_name 0
       set next_bus_stop_name item next_bus_stop amsterdam_bus_stops_names
